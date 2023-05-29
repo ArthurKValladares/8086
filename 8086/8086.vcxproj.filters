@@ -19,7 +19,4 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <Text Include="data\listing_0037_single_register_mov.txt" />
-  </ItemGroup>
 </Project>
