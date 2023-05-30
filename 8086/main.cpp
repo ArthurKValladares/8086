@@ -253,7 +253,7 @@ void process_instructions(const Instruction* instructions, uint64_t count) {
 void main() {
 	std::ifstream in_file;
 	// TODO: relative path
-	in_file.open("C:\\Users\\Arthur\\Documents\\projects\\8086\\8086\\data\\listing_0037_single_register_mov.txt");
+	in_file.open(".\\data\\listing_0038_many_register_mov.txt");
 	if (in_file) {
 		// File size
 		in_file.seekg(0, std::ios::end);
