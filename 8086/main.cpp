@@ -125,7 +125,6 @@ void print_reg(Reg reg) {
 }
 
 Reg get_reg_from_bits(bool is_word_instruction, uint8_t reg_bits) {
-
 	if (reg_bits == 0b00000000) {
 		if (!is_word_instruction) {
 			return Reg::AL;
@@ -252,7 +251,6 @@ void process_instructions(const Instruction* instructions, uint64_t count) {
 
 void main() {
 	std::ifstream in_file;
-	// TODO: relative path
 	in_file.open(".\\data\\listing_0038_many_register_mov.txt");
 	if (in_file) {
 		// File size
