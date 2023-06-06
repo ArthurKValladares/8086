@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <iostream>
 #include <bitset>
+#include <cassert>
 
 struct Instruction {
 	uint16_t bits;
@@ -12,6 +13,10 @@ struct Instruction {
 
 bool word_instruction(Instruction instruction) {
 	return (instruction.bits & 0b00000001) != 0;
+}
+
+bool direction_is_to_register(Instruction instruction) {
+	return (instruction.bits & 0b00000010) != 0;
 }
 
 void print_byte(uint8_t byte) {
@@ -44,6 +49,7 @@ ModEncoding get_mod_encoding(Instruction instruction) {
 		return ModEncoding::MemoryMode16BitDisplacement;
 	}
 	else {
+		assert(op_bits == 0b00000011);
 		return ModEncoding::RegisterMode;
 	}
 }
@@ -197,20 +203,43 @@ Reg get_reg(Instruction instruction) {
 	return get_reg_from_bits(is_word_instruction, reg_bits);
 }
 
-Reg get_rm_reg(Instruction instruction) {
+Reg get_reg_from_rm(Instruction instruction) {
 	const bool is_word_instruction = word_instruction(instruction);
 	const uint8_t reg_bits = (uint8_t)(instruction.bits >> 8 & 0b00000111);
 	return get_reg_from_bits(is_word_instruction, reg_bits);
 }
 
 enum InstructionID {
-	MOV
+	MOV_RegisterMemoryToFromRegister,
+	MOV_ImmediateToRegisterMemory,
+	MOV_ImmediateToRegister,
+	MOV_MemoryToAccumulator,
+	MOV_AccumulatorToMemory,
+	MOV_RegisterMemoryToSegmentRegister,
+	MOV_SegmentRegistertoRegisterMemory,
 };
 
 std::optional<InstructionID> get_instruction_id(Instruction instruction) {
-	const uint8_t op_bits = (uint8_t) (instruction.bits & 0b11111100);
-	if (op_bits == 0b10001000) {
-		return std::optional{ InstructionID::MOV };
+	if ((uint8_t)(instruction.bits & 0b11111100) == 0b10001000) {
+		return std::optional{ InstructionID::MOV_RegisterMemoryToFromRegister };
+	}
+	else if ((uint8_t)(instruction.bits & 0b11111110) == 0b11000110) {
+		return std::optional{ InstructionID::MOV_ImmediateToRegisterMemory };
+	}
+	else if ((uint8_t)(instruction.bits & 0b11110000) == 0b10110000) {
+		return std::optional{ InstructionID::MOV_ImmediateToRegister };
+	}
+	else if ((uint8_t)(instruction.bits & 0b11111110) == 0b10100000) {
+		return std::optional{ InstructionID::MOV_MemoryToAccumulator };
+	}
+	else if ((uint8_t)(instruction.bits & 0b11111110) == 0b10100010) {
+		return std::optional{ InstructionID::MOV_AccumulatorToMemory };
+	}
+	else if ((uint8_t)(instruction.bits) == 0b10001110) {
+		return std::optional{ InstructionID::MOV_RegisterMemoryToSegmentRegister };
+	}
+	else if ((uint8_t)(instruction.bits) == 0b10001100) {
+		return std::optional{ InstructionID::MOV_SegmentRegistertoRegisterMemory };
 	}
 	else {
 		return std::nullopt;
@@ -227,10 +256,10 @@ void process_instructions(const Instruction* instructions, uint64_t count) {
 			const Reg           reg = get_reg(instruction);
 			// TODO: we are unconditionally gettting the rm reg here, but in a real emulator we would need to check the R/M encoding
 			// and proceed differently according to the encoding
-			const Reg           rm_reg = get_rm_reg(instruction);
+			const Reg           rm_reg = get_reg_from_rm(instruction);
 			switch (id)
 			{
-			case InstructionID::MOV:
+			case InstructionID::MOV_RegisterMemoryToFromRegister:
 				printf("mov, ");
 				print_reg(rm_reg);
 				printf(", ");
