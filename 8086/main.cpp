@@ -6,6 +6,7 @@
 #include <iostream>
 #include <bitset>
 #include <cassert>
+#include <variant>
 
 struct Instruction {
 	uint16_t bits;
@@ -25,12 +26,12 @@ void print_byte(uint8_t byte) {
 }
 
 void print_instruction(Instruction instruction) {
-	const std::bitset<8> higher(instruction.bits >> 8);
 	const std::bitset<8> lower(instruction.bits & 0x00ff);
+	const std::bitset<8> higher(instruction.bits >> 8);
 	std::cout << higher << " "  << lower;
 }
 
-enum ModEncoding {
+enum class ModEncoding {
 	MemoryModeNoDisplacement,
 	MemoryMode8BitDisplacement,
 	MemoryMode16BitDisplacement,
@@ -54,7 +55,7 @@ ModEncoding get_mod_encoding(Instruction instruction) {
 	}
 }
 
-enum Reg {
+enum class Reg {
 	AL,
 	CL,
 	DL,
@@ -203,13 +204,45 @@ Reg get_reg(Instruction instruction) {
 	return get_reg_from_bits(is_word_instruction, reg_bits);
 }
 
-Reg get_reg_from_rm(Instruction instruction) {
+enum class RMNoDisp {
+	BX_Plus_SI,
+	BX_Plus_DI,
+	BP_Plus_SI,
+	BP_Plus_DI,
+	SI,
+	DI,
+	BP,
+	BX,
+};
+
+std::variant<Reg, RMNoDisp> get_rm_value(ModEncoding mod_encoding, Instruction instruction) {
 	const bool is_word_instruction = word_instruction(instruction);
-	const uint8_t reg_bits = (uint8_t)(instruction.bits >> 8 & 0b00000111);
-	return get_reg_from_bits(is_word_instruction, reg_bits);
+	const uint8_t rm_bits = (uint8_t)(instruction.bits >> 8 & 0b00000111);
+	if (mod_encoding == ModEncoding::RegisterMode) {
+		return get_reg_from_bits(is_word_instruction, rm_bits);
+	}
+	else {
+		if (rm_bits == 0b00000000) {
+			return RMNoDisp::BX_Plus_SI;
+		} else if (rm_bits == 0b00000000) {
+			return RMNoDisp::BX_Plus_DI;
+		} else if (rm_bits == 0b00000000) {
+			return RMNoDisp::BP_Plus_SI;
+		} else if (rm_bits == 0b00000000) {
+			return RMNoDisp::BP_Plus_DI;
+		} else if (rm_bits == 0b00000000) {
+			return RMNoDisp::SI;
+		} else if (rm_bits == 0b00000000) {
+			return RMNoDisp::DI;
+		} else if (rm_bits == 0b00000000) {
+			return RMNoDisp::BP;
+		} else {
+			return RMNoDisp::BX;
+		}
+	}
 }
 
-enum InstructionID {
+enum class InstructionID {
 	MOV_RegisterMemoryToFromRegister,
 	MOV_ImmediateToRegisterMemory,
 	MOV_ImmediateToRegister,
@@ -247,26 +280,34 @@ std::optional<InstructionID> get_instruction_id(Instruction instruction) {
 }
 
 void process_instructions(const Instruction* instructions, uint64_t count) {
+	// TODO: Now need to take instruction size into account
 	for (int i = 0; i < count; ++i) {
 		const Instruction instruction = *(instructions + i);
 		const std::optional<InstructionID> opt_id = get_instruction_id(instruction);
 		if (opt_id.has_value() ) {
-			const ModEncoding   mod_ecoding = get_mod_encoding(instruction);
-			const InstructionID id = *opt_id;
-			const Reg           reg = get_reg(instruction);
-			// TODO: we are unconditionally gettting the rm reg here, but in a real emulator we would need to check the R/M encoding
-			// and proceed differently according to the encoding
-			const Reg           rm_reg = get_reg_from_rm(instruction);
+			const ModEncoding                 mod_encoding = get_mod_encoding(instruction);
+			const InstructionID               id = *opt_id;
+			const Reg                         reg = get_reg(instruction);
+			const std::variant<Reg, RMNoDisp> rm = get_rm_value(mod_encoding, instruction);
 			switch (id)
 			{
 			case InstructionID::MOV_RegisterMemoryToFromRegister:
 				printf("mov, ");
-				print_reg(rm_reg);
+				if (std::holds_alternative<Reg>(rm)) {
+					print_reg(std::get<Reg>(rm));
+				}
+				else {
+					printf("TODO");
+				}
 				printf(", ");
 				print_reg(reg);
 				printf("\n");
 				break;
+			case InstructionID::MOV_ImmediateToRegister:
+				printf("TODO\n");
+				break;
 			default:
+				printf("UNSUPPORTED\n");
 				break;
 			}
 		}
@@ -278,9 +319,9 @@ void process_instructions(const Instruction* instructions, uint64_t count) {
 	}
 }
 
-void main() {
+int main() {
 	std::ifstream in_file;
-	in_file.open(".\\data\\listing_0038_many_register_mov.txt");
+	in_file.open(".\\data\\listing_0039_more_movs");
 	if (in_file) {
 		// File size
 		in_file.seekg(0, std::ios::end);
@@ -300,4 +341,6 @@ void main() {
 	else {
 		printf("Could not read input file");
 	}
+
+	return 0;
 }
