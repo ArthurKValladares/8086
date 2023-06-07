@@ -8,27 +8,9 @@
 #include <cassert>
 #include <variant>
 
-struct Instruction {
-	uint16_t bits;
-};
-
-bool word_instruction(Instruction instruction) {
-	return (instruction.bits & 0b00000001) != 0;
-}
-
-bool direction_is_to_register(Instruction instruction) {
-	return (instruction.bits & 0b00000010) != 0;
-}
-
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
 	std::cout << bitset;
-}
-
-void print_instruction(Instruction instruction) {
-	const std::bitset<8> lower(instruction.bits & 0x00ff);
-	const std::bitset<8> higher(instruction.bits >> 8);
-	std::cout << higher << " "  << lower;
 }
 
 enum class ModEncoding {
@@ -38,19 +20,19 @@ enum class ModEncoding {
 	RegisterMode,
 };
 
-ModEncoding get_mod_encoding(Instruction instruction) {
-	const uint8_t op_bits = (uint8_t)((instruction.bits >> 8) >> 6);
-	if (op_bits == 0b00000000) {
+ModEncoding get_mod_encoding(uint8_t byte) {
+	const uint8_t mod_bits = (uint8_t)(byte >> 6);
+	if (mod_bits == 0b00000000) {
 		return ModEncoding::MemoryModeNoDisplacement;
 	}
-	else if (op_bits == 0b00000001) {
+	else if (mod_bits == 0b00000001) {
 		return ModEncoding::MemoryMode8BitDisplacement;
 	}
-	else if (op_bits == 0b00000010) {
+	else if (mod_bits == 0b00000010) {
 		return ModEncoding::MemoryMode16BitDisplacement;
 	}
 	else {
-		assert(op_bits == 0b00000011);
+		assert(mod_bits == 0b00000011);
 		return ModEncoding::RegisterMode;
 	}
 }
@@ -198,9 +180,8 @@ Reg get_reg_from_bits(bool is_word_instruction, uint8_t reg_bits) {
 	}
 }
 
-Reg get_reg(Instruction instruction) {
-	const bool is_word_instruction = word_instruction(instruction);
-	const uint8_t reg_bits = (uint8_t)((instruction.bits >> 8) >> 3 & 0b00000111);
+Reg get_reg(bool is_word_instruction, uint8_t byte) {
+	const uint8_t reg_bits = (uint8_t)((byte >> 3) & 0b00000111);
 	return get_reg_from_bits(is_word_instruction, reg_bits);
 }
 
@@ -215,9 +196,8 @@ enum class RMNoDisp {
 	BX,
 };
 
-std::variant<Reg, RMNoDisp> get_rm_value(ModEncoding mod_encoding, Instruction instruction) {
-	const bool is_word_instruction = word_instruction(instruction);
-	const uint8_t rm_bits = (uint8_t)(instruction.bits >> 8 & 0b00000111);
+std::variant<Reg, RMNoDisp> get_rm_value(bool is_word_instruction, ModEncoding mod_encoding, uint8_t byte) {
+	const uint8_t rm_bits = (uint8_t)(byte & 0b00000111);
 	if (mod_encoding == ModEncoding::RegisterMode) {
 		return get_reg_from_bits(is_word_instruction, rm_bits);
 	}
@@ -252,26 +232,26 @@ enum class InstructionID {
 	MOV_SegmentRegistertoRegisterMemory,
 };
 
-std::optional<InstructionID> get_instruction_id(Instruction instruction) {
-	if ((uint8_t)(instruction.bits & 0b11111100) == 0b10001000) {
+std::optional<InstructionID> get_instruction_id(uint8_t byte) {
+	if ((byte & 0b11111100) == 0b10001000) {
 		return std::optional{ InstructionID::MOV_RegisterMemoryToFromRegister };
 	}
-	else if ((uint8_t)(instruction.bits & 0b11111110) == 0b11000110) {
+	else if ((byte & 0b11111110) == 0b11000110) {
 		return std::optional{ InstructionID::MOV_ImmediateToRegisterMemory };
 	}
-	else if ((uint8_t)(instruction.bits & 0b11110000) == 0b10110000) {
+	else if ((byte & 0b11110000) == 0b10110000) {
 		return std::optional{ InstructionID::MOV_ImmediateToRegister };
 	}
-	else if ((uint8_t)(instruction.bits & 0b11111110) == 0b10100000) {
+	else if ((byte & 0b11111110) == 0b10100000) {
 		return std::optional{ InstructionID::MOV_MemoryToAccumulator };
 	}
-	else if ((uint8_t)(instruction.bits & 0b11111110) == 0b10100010) {
+	else if ((byte & 0b11111110) == 0b10100010) {
 		return std::optional{ InstructionID::MOV_AccumulatorToMemory };
 	}
-	else if ((uint8_t)(instruction.bits) == 0b10001110) {
+	else if (byte == 0b10001110) {
 		return std::optional{ InstructionID::MOV_RegisterMemoryToSegmentRegister };
 	}
-	else if ((uint8_t)(instruction.bits) == 0b10001100) {
+	else if (byte == 0b10001100) {
 		return std::optional{ InstructionID::MOV_SegmentRegistertoRegisterMemory };
 	}
 	else {
@@ -279,42 +259,75 @@ std::optional<InstructionID> get_instruction_id(Instruction instruction) {
 	}
 }
 
-void process_instructions(const Instruction* instructions, uint64_t count) {
-	// TODO: Now need to take instruction size into account
-	for (int i = 0; i < count; ++i) {
-		const Instruction instruction = *(instructions + i);
-		const std::optional<InstructionID> opt_id = get_instruction_id(instruction);
+void process_instructions(const uint8_t* bytes, uint64_t count) {
+	int instruction_index = 0;
+	while (instruction_index < count) {
+		const uint8_t byte = *(bytes + instruction_index);
+		const std::optional<InstructionID> opt_id = get_instruction_id(byte);
 		if (opt_id.has_value() ) {
-			const ModEncoding                 mod_encoding = get_mod_encoding(instruction);
-			const InstructionID               id = *opt_id;
-			const Reg                         reg = get_reg(instruction);
-			const std::variant<Reg, RMNoDisp> rm = get_rm_value(mod_encoding, instruction);
+			const InstructionID id = *opt_id;
+
 			switch (id)
 			{
-			case InstructionID::MOV_RegisterMemoryToFromRegister:
-				printf("mov, ");
-				if (std::holds_alternative<Reg>(rm)) {
-					print_reg(std::get<Reg>(rm));
+				case InstructionID::MOV_RegisterMemoryToFromRegister:
+				{
+					const uint8_t next_byte = *(bytes + instruction_index + 1);
+
+					const bool                        is_word_instruction = (byte & 0b00000001) != 0;
+					const ModEncoding                 mod_encoding = get_mod_encoding(next_byte);
+					const Reg                         reg = get_reg(is_word_instruction, next_byte);
+					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
+
+					printf("mov, ");
+					if (std::holds_alternative<Reg>(rm)) {
+						print_reg(std::get<Reg>(rm));
+					}
+					else {
+						printf("TODO");
+					}
+					printf(", ");
+					print_reg(reg);
+					printf("\n");
+
+					if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
+						instruction_index += 2;
+					}
+					else if (mod_encoding == ModEncoding::MemoryMode8BitDisplacement) {
+						instruction_index += 3;
+					}
+					else {
+						instruction_index += 4;
+					}
+
+					break;
 				}
-				else {
-					printf("TODO");
+				case InstructionID::MOV_ImmediateToRegister:
+				{
+					const bool is_word_instruction = (byte & 0b00001000) != 0;
+
+					printf("TODO\n");
+
+					if (is_word_instruction) {
+						instruction_index += 3;
+					}
+					else {
+						instruction_index += 2;
+					}
+
+					break;
 				}
-				printf(", ");
-				print_reg(reg);
-				printf("\n");
-				break;
-			case InstructionID::MOV_ImmediateToRegister:
-				printf("TODO\n");
-				break;
-			default:
-				printf("UNSUPPORTED\n");
-				break;
+				default:
+				{
+					printf("UNSUPPORTED\n");
+					break;
+				}
 			}
 		}
 		else {
 			printf("Invalid instruction: ");
-			print_instruction(instruction);
+			print_byte(byte);
 			printf("\n");
+			instruction_index += 2;
 		}
 	}
 }
@@ -327,16 +340,16 @@ int main() {
 		in_file.seekg(0, std::ios::end);
 		const size_t num_bytes = in_file.tellg();
 		in_file.seekg(0, std::ios::beg);
-		const size_t length = num_bytes / 2;
+		const size_t length = num_bytes;
 
 		// Read to buffer
-		const Instruction* instructions = new Instruction[length];
-		in_file.read((char*)instructions, num_bytes);
+		uint8_t* bytes = new uint8_t[length];
+		in_file.read((char*) bytes, num_bytes);
 
-		process_instructions(instructions, length);
+		process_instructions(bytes, length);
 
 		// Cleanup
-		delete[] instructions;
+		delete[] bytes;
 	}
 	else {
 		printf("Could not read input file");
