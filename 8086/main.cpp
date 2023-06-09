@@ -180,11 +180,6 @@ Reg get_reg_from_bits(bool is_word_instruction, uint8_t reg_bits) {
 	}
 }
 
-Reg get_reg(bool is_word_instruction, uint8_t byte) {
-	const uint8_t reg_bits = (uint8_t)((byte >> 3) & 0b00000111);
-	return get_reg_from_bits(is_word_instruction, reg_bits);
-}
-
 enum class RMNoDisp {
 	BX_Plus_SI,
 	BX_Plus_DI,
@@ -275,7 +270,7 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 
 					const bool                        is_word_instruction = (byte & 0b00000001) != 0;
 					const ModEncoding                 mod_encoding = get_mod_encoding(next_byte);
-					const Reg                         reg = get_reg(is_word_instruction, next_byte);
+					const Reg                         reg = get_reg_from_bits(is_word_instruction, (uint8_t)((next_byte >> 3) & 0b00000111));
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 
 					printf("mov, ");
@@ -304,13 +299,25 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				case InstructionID::MOV_ImmediateToRegister:
 				{
 					const bool is_word_instruction = (byte & 0b00001000) != 0;
+					const Reg  reg = get_reg_from_bits(is_word_instruction, (uint8_t)(byte & 0b00000111));
 
-					printf("TODO\n");
+					printf("mov, ");
+					print_reg(reg);
 
 					if (is_word_instruction) {
+						uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+
+						printf(", %d", data);
+						printf("\n");
+
 						instruction_index += 3;
 					}
 					else {
+						uint8_t data = *(bytes + instruction_index + 1);
+
+						printf(", %d", data);
+						printf("\n");
+
 						instruction_index += 2;
 					}
 
