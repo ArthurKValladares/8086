@@ -7,10 +7,16 @@
 #include <bitset>
 #include <cassert>
 #include <variant>
+#include <string_view>
+#include <string>
 
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
 	std::cout << bitset;
+}
+
+void print_mov_instruction(std::string_view left, std::string_view right) {
+	std::cout << "mov, " << left << ", " << right << std::endl;
 }
 
 enum class ModEncoding {
@@ -56,58 +62,41 @@ enum class Reg {
 	DI,
 };
 
-// TODO: return string later
-void print_reg(Reg reg) {
+std::string_view reg_string(Reg reg) {
 	switch (reg)
 	{
 	case Reg::AL:
-		printf("al");
-		break;
+		return "al";
 	case Reg::CL:
-		printf("cl");
-		break;
+		return "cl";
 	case Reg::DL:
-		printf("dl");
-		break;
+		return "dl";
 	case Reg::BL:
-		printf("bl");
-		break;
+		return "bl";
 	case Reg::AH:
-		printf("ah");
-		break;
+		return "ah";
 	case Reg::CH:
-		printf("ch");
-		break;
+		return "ch";
 	case Reg::DH:
-		printf("dh");
-		break;
+		return "dh";
 	case Reg::BH:
-		printf("bh");
-		break;
+		return "bh";
 	case Reg::AX:
-		printf("ax");
-		break;
+		return "ax";
 	case Reg::CX:
-		printf("cx");
-		break;
+		return "cx";
 	case Reg::DX:
-		printf("dx");
-		break;
+		return "dx";
 	case Reg::BX:
-		printf("bx");
-		break;
+		return "bx";
 	case Reg::SP:
-		printf("sp");
-		break;
+		return "sp";
 	case Reg::BP:
-		printf("bp");
-		break;
+		return "bp";
 	case Reg::SI:
-		printf("si");
-		break;
+		return "si";
 	case Reg::DI:
-		printf("di");
-		break;
+		return "di";
 	default:
 		break;
 	}
@@ -273,16 +262,16 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const Reg                         reg = get_reg_from_bits(is_word_instruction, (uint8_t)((next_byte >> 3) & 0b00000111));
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 
-					printf("mov, ");
+					
+					std::string_view left;
 					if (std::holds_alternative<Reg>(rm)) {
-						print_reg(std::get<Reg>(rm));
+						left = reg_string(std::get<Reg>(rm));
 					}
 					else {
-						printf("TODO");
+						left = "TODO";
 					}
-					printf(", ");
-					print_reg(reg);
-					printf("\n");
+					std::string_view right = reg_string(reg);
+					print_mov_instruction(left, right);
 
 					if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
 						instruction_index += 2;
@@ -300,23 +289,19 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				{
 					const bool is_word_instruction = (byte & 0b00001000) != 0;
 					const Reg  reg = get_reg_from_bits(is_word_instruction, (uint8_t)(byte & 0b00000111));
-
-					printf("mov, ");
-					print_reg(reg);
+					std::string_view left = reg_string(reg);
 
 					if (is_word_instruction) {
 						uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
 
-						printf(", %d", data);
-						printf("\n");
+						print_mov_instruction(left, std::to_string(data));
 
 						instruction_index += 3;
 					}
 					else {
 						uint8_t data = *(bytes + instruction_index + 1);
 
-						printf(", %d", data);
-						printf("\n");
+						print_mov_instruction(left, std::to_string(data));
 
 						instruction_index += 2;
 					}
