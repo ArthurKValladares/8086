@@ -9,6 +9,7 @@
 #include <variant>
 #include <string_view>
 #include <string>
+#include <utility>
 
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
@@ -97,8 +98,6 @@ std::string_view reg_string(Reg reg) {
 		return "si";
 	case Reg::DI:
 		return "di";
-	default:
-		break;
 	}
 }
 
@@ -180,6 +179,27 @@ enum class RMNoDisp {
 	BX,
 };
 
+std::string_view rm_string(RMNoDisp rm) {
+	switch (rm) {
+	case RMNoDisp::BX_Plus_SI:
+		return "bx + si";
+	case RMNoDisp::BX_Plus_DI:
+		return "bx + di";
+	case RMNoDisp::BP_Plus_SI:
+		return "bp + si";
+	case RMNoDisp::BP_Plus_DI:
+		return "bp + di";
+	case RMNoDisp::SI:
+		return "si";
+	case RMNoDisp::DI:
+		return "di";
+	case RMNoDisp::BP:
+		return "bp";
+	case RMNoDisp::BX:
+		return "bx";
+	}
+}
+
 std::variant<Reg, RMNoDisp> get_rm_value(bool is_word_instruction, ModEncoding mod_encoding, uint8_t byte) {
 	const uint8_t rm_bits = (uint8_t)(byte & 0b00000111);
 	if (mod_encoding == ModEncoding::RegisterMode) {
@@ -188,19 +208,20 @@ std::variant<Reg, RMNoDisp> get_rm_value(bool is_word_instruction, ModEncoding m
 	else {
 		if (rm_bits == 0b00000000) {
 			return RMNoDisp::BX_Plus_SI;
-		} else if (rm_bits == 0b00000000) {
+		} else if (rm_bits == 0b00000001) {
 			return RMNoDisp::BX_Plus_DI;
-		} else if (rm_bits == 0b00000000) {
+		} else if (rm_bits == 0b00000010) {
 			return RMNoDisp::BP_Plus_SI;
-		} else if (rm_bits == 0b00000000) {
+		} else if (rm_bits == 0b00000011) {
 			return RMNoDisp::BP_Plus_DI;
-		} else if (rm_bits == 0b00000000) {
+		} else if (rm_bits == 0b00000100) {
 			return RMNoDisp::SI;
-		} else if (rm_bits == 0b00000000) {
+		} else if (rm_bits == 0b00000101) {
 			return RMNoDisp::DI;
-		} else if (rm_bits == 0b00000000) {
+		} else if (rm_bits == 0b00000110) {
 			return RMNoDisp::BP;
-		} else {
+		} else{
+			assert(rm_bits == 0b00000111);
 			return RMNoDisp::BX;
 		}
 	}
@@ -263,15 +284,18 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 
 					
-					std::string_view left;
+					
 					if (std::holds_alternative<Reg>(rm)) {
-						left = reg_string(std::get<Reg>(rm));
+						std::string_view left = reg_string(std::get<Reg>(rm));
+						std::string_view right = reg_string(reg);
+						print_mov_instruction(left, right);
 					}
 					else {
-						left = "TODO";
-					}
-					std::string_view right = reg_string(reg);
-					print_mov_instruction(left, right);
+						std::string_view left = reg_string(reg);
+						std::string_view rm_sv = rm_string(std::get<RMNoDisp>(rm));
+						std::string right = std::string("[") + std::string(rm_sv) + std::string("]");
+						print_mov_instruction(left, right);
+					}					
 
 					if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
 						instruction_index += 2;
