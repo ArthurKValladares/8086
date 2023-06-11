@@ -279,23 +279,60 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const uint8_t next_byte = *(bytes + instruction_index + 1);
 
 					const bool                        is_word_instruction = (byte & 0b00000001) != 0;
+					const bool                        direction_to_register = (byte & 0b00000010) != 0;
 					const ModEncoding                 mod_encoding = get_mod_encoding(next_byte);
 					const Reg                         reg = get_reg_from_bits(is_word_instruction, (uint8_t)((next_byte >> 3) & 0b00000111));
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
-
 					
-					
+					// TODO: cleanup all this left/right stuff
 					if (std::holds_alternative<Reg>(rm)) {
 						std::string_view left = reg_string(std::get<Reg>(rm));
 						std::string_view right = reg_string(reg);
 						print_mov_instruction(left, right);
 					}
 					else {
-						std::string_view left = reg_string(reg);
+						std::string_view reg_field = reg_string(reg);
+
+						std::string rm_field;
 						std::string_view rm_sv = rm_string(std::get<RMNoDisp>(rm));
-						std::string right = std::string("[") + std::string(rm_sv) + std::string("]");
-						print_mov_instruction(left, right);
+						switch (mod_encoding) {
+							case ModEncoding::MemoryModeNoDisplacement: {
+								rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
+								break;
+							}
+							case ModEncoding::MemoryMode8BitDisplacement: {
+								uint8_t data = *((uint8_t*)(bytes + instruction_index + 2));
+								if (data != 0) {
+									rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
+								}
+								else {
+									rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
+								}
+								break;
+							}
+							case ModEncoding::MemoryMode16BitDisplacement: {
+								uint16_t data = *((uint16_t*)(bytes + instruction_index + 2));
+								if (data != 0) {
+									rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
+								}
+								else {
+									rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
+								}
+								break;
+							}
+							case ModEncoding::RegisterMode: {
+								break;
+							}
+						}
+
+						if (direction_to_register) {
+							print_mov_instruction(reg_field, rm_field);
+						}
+						else {
+							print_mov_instruction(rm_field, reg_field);
+						}
 					}					
+					
 
 					if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
 						instruction_index += 2;
