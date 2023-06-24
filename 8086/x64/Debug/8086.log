@@ -1,4 +1,6 @@
 ﻿  main.cpp
-C:\Users\Arthur\Documents\projects\8086\8086\main.cpp(201): warning C4715: 'rm_string': not all control paths return a value
-C:\Users\Arthur\Documents\projects\8086\8086\main.cpp(102): warning C4715: 'reg_string': not all control paths return a value
+C:\Users\Arthur\Documents\projects\8086\8086\main.cpp(308,5): warning C4067: unexpected tokens following preprocessor directive - expected a newline
+C:\Users\Arthur\Documents\projects\8086\8086\main.cpp(215): warning C4715: 'rm_string': not all control paths return a value
+C:\Users\Arthur\Documents\projects\8086\8086\main.cpp(116): warning C4715: 'reg_string': not all control paths return a value
+C:\Users\Arthur\Documents\projects\8086\8086\main.cpp(271): warning C4715: 'get_id_string': not all control paths return a value
   8086.vcxproj -> C:\Users\Arthur\Documents\projects\8086\x64\Debug\8086.exe

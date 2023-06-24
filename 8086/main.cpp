@@ -11,6 +11,8 @@
 #include <string>
 #include <utility>
 
+#define DEBUG_PRINT false;
+
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
 	std::cout << bitset;
@@ -41,6 +43,18 @@ ModEncoding get_mod_encoding(uint8_t byte) {
 	else {
 		assert(mod_bits == 0b00000011);
 		return ModEncoding::RegisterMode;
+	}
+}
+
+int get_mod_instruction_offset(ModEncoding mod_encoding) {
+	if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
+		return 2;
+	}
+	else if (mod_encoding == ModEncoding::MemoryMode8BitDisplacement) {
+		return 3;
+	}
+	else {
+		return 4;
 	}
 }
 
@@ -237,6 +251,25 @@ enum class InstructionID {
 	MOV_SegmentRegistertoRegisterMemory,
 };
 
+std::string_view get_id_string(InstructionID id) {
+	switch (id) {
+	case InstructionID::MOV_RegisterMemoryToFromRegister:
+		return "RegisterMemoryToFromRegister";
+	case InstructionID::MOV_ImmediateToRegisterMemory:
+		return "ImmediateToRegisterMemory";
+	case InstructionID::MOV_ImmediateToRegister:
+		return "ImmediateToRegister";
+	case InstructionID::MOV_MemoryToAccumulator:
+		return "MemoryToAccumulator";
+	case InstructionID::MOV_AccumulatorToMemory:
+		return "AccumulatorToMemory";
+	case InstructionID::MOV_RegisterMemoryToSegmentRegister:
+		return "RegisterMemoryToSegmentRegister";
+	case InstructionID::MOV_SegmentRegistertoRegisterMemory:
+		return "SegmentRegistertoRegisterMemory";
+	}
+}
+
 std::optional<InstructionID> get_instruction_id(uint8_t byte) {
 	if ((byte & 0b11111100) == 0b10001000) {
 		return std::optional{ InstructionID::MOV_RegisterMemoryToFromRegister };
@@ -271,6 +304,10 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 		const std::optional<InstructionID> opt_id = get_instruction_id(byte);
 		if (opt_id.has_value() ) {
 			const InstructionID id = *opt_id;
+
+#if DEBUG_PRINT
+			std::cout << get_id_string(id) << std::endl;
+#endif
 
 			switch (id)
 			{
@@ -334,15 +371,7 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					}					
 					
 
-					if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
-						instruction_index += 2;
-					}
-					else if (mod_encoding == ModEncoding::MemoryMode8BitDisplacement) {
-						instruction_index += 3;
-					}
-					else {
-						instruction_index += 4;
-					}
+					instruction_index += get_mod_instruction_offset(mod_encoding);
 
 					break;
 				}
@@ -350,23 +379,59 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				{
 					const bool is_word_instruction = (byte & 0b00001000) != 0;
 					const Reg  reg = get_reg_from_bits(is_word_instruction, (uint8_t)(byte & 0b00000111));
-					std::string_view left = reg_string(reg);
+					std::string_view reg_str = reg_string(reg);
 
 					if (is_word_instruction) {
 						uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
 
-						print_mov_instruction(left, std::to_string(data));
+						print_mov_instruction(reg_str, std::to_string(data));
 
 						instruction_index += 3;
 					}
 					else {
 						uint8_t data = *(bytes + instruction_index + 1);
 
-						print_mov_instruction(left, std::to_string(data));
+						print_mov_instruction(reg_str, std::to_string(data));
 
 						instruction_index += 2;
 					}
 
+					break;
+				}
+				case InstructionID::MOV_ImmediateToRegisterMemory:
+				{
+					printf("TODO\n");
+					const uint8_t next_byte = *(bytes + instruction_index + 1);
+
+					const bool                        is_word_instruction = (byte & 0b00000001) != 0;
+					const ModEncoding                 mod_encoding = get_mod_encoding(next_byte);
+					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
+
+
+					instruction_index += get_mod_instruction_offset(mod_encoding);
+
+					if (is_word_instruction) {
+						instruction_index += 2;
+					}
+					else {
+						instruction_index += 1;
+					}
+					break;
+				}
+				case InstructionID::MOV_MemoryToAccumulator:
+				{
+					printf("TODO\n");
+					
+
+					instruction_index += 3;
+					break;
+				}
+				case InstructionID::MOV_AccumulatorToMemory:
+				{
+					printf("TODO\n");
+
+
+					instruction_index += 3;
 					break;
 				}
 				default:
@@ -387,7 +452,7 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 
 int main() {
 	std::ifstream in_file;
-	in_file.open(".\\data\\listing_0039_more_movs");
+	in_file.open(".\\data\\listing_0040_challenge_movs");
 	if (in_file) {
 		// File size
 		in_file.seekg(0, std::ios::end);
