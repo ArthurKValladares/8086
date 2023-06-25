@@ -214,6 +214,41 @@ std::string_view rm_string(RMNoDisp rm) {
 	}
 }
 
+std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint8_t* bytes, int instruction_index) {
+	std::string rm_field;
+	const std::string_view rm_sv = rm_string(rm);
+	switch (mod_encoding) {
+	case ModEncoding::MemoryModeNoDisplacement: {
+		rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
+		break;
+	}
+	case ModEncoding::MemoryMode8BitDisplacement: {
+		uint8_t data = *((uint8_t*)(bytes + instruction_index + 2));
+		if (data != 0) {
+			rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
+		}
+		else {
+			rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
+		}
+		break;
+	}
+	case ModEncoding::MemoryMode16BitDisplacement: {
+		uint16_t data = *((uint16_t*)(bytes + instruction_index + 2));
+		if (data != 0) {
+			rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
+		}
+		else {
+			rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
+		}
+		break;
+	}
+	case ModEncoding::RegisterMode: {
+		break;
+	}
+	}
+	return rm_field;
+}
+
 std::variant<Reg, RMNoDisp> get_rm_value(bool is_word_instruction, ModEncoding mod_encoding, uint8_t byte) {
 	const uint8_t rm_bits = (uint8_t)(byte & 0b00000111);
 	if (mod_encoding == ModEncoding::RegisterMode) {
@@ -321,46 +356,16 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const Reg                         reg = get_reg_from_bits(is_word_instruction, (uint8_t)((next_byte >> 3) & 0b00000111));
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 					
-					// TODO: cleanup all this left/right stuff
 					if (std::holds_alternative<Reg>(rm)) {
-						std::string_view left = reg_string(std::get<Reg>(rm));
-						std::string_view right = reg_string(reg);
-						print_mov_instruction(left, right);
+						const std::string_view rm_reg = reg_string(std::get<Reg>(rm));
+						const std::string_view reg_str = reg_string(reg);
+						print_mov_instruction(rm_reg, reg_str);
 					}
 					else {
-						std::string_view reg_field = reg_string(reg);
+						const std::string_view reg_field = reg_string(reg);
 
-						std::string rm_field;
-						std::string_view rm_sv = rm_string(std::get<RMNoDisp>(rm));
-						switch (mod_encoding) {
-							case ModEncoding::MemoryModeNoDisplacement: {
-								rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
-								break;
-							}
-							case ModEncoding::MemoryMode8BitDisplacement: {
-								uint8_t data = *((uint8_t*)(bytes + instruction_index + 2));
-								if (data != 0) {
-									rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
-								}
-								else {
-									rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
-								}
-								break;
-							}
-							case ModEncoding::MemoryMode16BitDisplacement: {
-								uint16_t data = *((uint16_t*)(bytes + instruction_index + 2));
-								if (data != 0) {
-									rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
-								}
-								else {
-									rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
-								}
-								break;
-							}
-							case ModEncoding::RegisterMode: {
-								break;
-							}
-						}
+						const RMNoDisp rm_no_disp = std::get<RMNoDisp>(rm);
+						const std::string rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
 
 						if (direction_to_register) {
 							print_mov_instruction(reg_field, rm_field);
@@ -379,17 +384,17 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				{
 					const bool is_word_instruction = (byte & 0b00001000) != 0;
 					const Reg  reg = get_reg_from_bits(is_word_instruction, (uint8_t)(byte & 0b00000111));
-					std::string_view reg_str = reg_string(reg);
+					const std::string_view reg_str = reg_string(reg);
 
 					if (is_word_instruction) {
-						uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+						const uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
 
 						print_mov_instruction(reg_str, std::to_string(data));
 
 						instruction_index += 3;
 					}
 					else {
-						uint8_t data = *(bytes + instruction_index + 1);
+						const uint8_t data = *(bytes + instruction_index + 1);
 
 						print_mov_instruction(reg_str, std::to_string(data));
 
@@ -400,22 +405,41 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				}
 				case InstructionID::MOV_ImmediateToRegisterMemory:
 				{
-					printf("TODO\n");
 					const uint8_t next_byte = *(bytes + instruction_index + 1);
 
 					const bool                        is_word_instruction = (byte & 0b00000001) != 0;
 					const ModEncoding                 mod_encoding = get_mod_encoding(next_byte);
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 
+					std::string rm_string;
+					if (std::holds_alternative<Reg>(rm)) {
+						const std::string_view rm_reg = reg_string(std::get<Reg>(rm));
+						rm_string = rm_reg;
+					}
+					else {						
+						const RMNoDisp rm_no_disp = std::get<RMNoDisp>(rm);
+						const std::string rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
+						rm_string = rm_field;
+					}
 
-					instruction_index += get_mod_instruction_offset(mod_encoding);
+					const int mod_offset = get_mod_instruction_offset(mod_encoding);
 
 					if (is_word_instruction) {
+						const uint16_t data = *((uint16_t*)(bytes + instruction_index + mod_offset));
+						const std::string data_field = "word " + std::to_string(data);
+						print_mov_instruction(rm_string, data_field);
+
 						instruction_index += 2;
 					}
 					else {
+						const uint8_t data = *(bytes + instruction_index + mod_offset);
+						const std::string data_field = "byte " + std::to_string(data);
+						print_mov_instruction(rm_string, data_field);
+
 						instruction_index += 1;
 					}
+					instruction_index += mod_offset;
+
 					break;
 				}
 				case InstructionID::MOV_MemoryToAccumulator:
