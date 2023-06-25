@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-#define DEBUG_PRINT false;
+#define DEBUG_PRINT true;
 
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
@@ -43,18 +43,6 @@ ModEncoding get_mod_encoding(uint8_t byte) {
 	else {
 		assert(mod_bits == 0b00000011);
 		return ModEncoding::RegisterMode;
-	}
-}
-
-int get_mod_instruction_offset(ModEncoding mod_encoding) {
-	if (mod_encoding == ModEncoding::RegisterMode || mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
-		return 2;
-	}
-	else if (mod_encoding == ModEncoding::MemoryMode8BitDisplacement) {
-		return 3;
-	}
-	else {
-		return 4;
 	}
 }
 
@@ -276,6 +264,26 @@ std::variant<Reg, RMNoDisp> get_rm_value(bool is_word_instruction, ModEncoding m
 	}
 }
 
+int get_mod_instruction_offset(ModEncoding mod_encoding, std::optional<RMNoDisp> rm) {
+	if (mod_encoding == ModEncoding::MemoryModeNoDisplacement) {
+		if (rm.has_value() && *rm == RMNoDisp::BP) {
+			return 4;
+		}
+		else {
+			return 2;
+		}
+	}
+	else if (mod_encoding == ModEncoding::RegisterMode) {
+		return 2;
+	}
+	else if (mod_encoding == ModEncoding::MemoryMode8BitDisplacement) {
+		return 3;
+	}
+	else {
+		return 4;
+	}
+}
+
 enum class InstructionID {
 	MOV_RegisterMemoryToFromRegister,
 	MOV_ImmediateToRegisterMemory,
@@ -356,14 +364,16 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const Reg                         reg = get_reg_from_bits(is_word_instruction, (uint8_t)((next_byte >> 3) & 0b00000111));
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 					
+					int mod_offset;
 					if (std::holds_alternative<Reg>(rm)) {
 						const std::string_view rm_reg = reg_string(std::get<Reg>(rm));
 						const std::string_view reg_str = reg_string(reg);
 						print_mov_instruction(rm_reg, reg_str);
+
+						mod_offset = get_mod_instruction_offset(mod_encoding, std::nullopt);
 					}
 					else {
 						const std::string_view reg_field = reg_string(reg);
-
 						const RMNoDisp rm_no_disp = std::get<RMNoDisp>(rm);
 						const std::string rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
 
@@ -373,10 +383,12 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 						else {
 							print_mov_instruction(rm_field, reg_field);
 						}
+
+						mod_offset = get_mod_instruction_offset(mod_encoding, std::optional<RMNoDisp>{ rm_no_disp });
 					}					
 					
 
-					instruction_index += get_mod_instruction_offset(mod_encoding);
+					instruction_index += mod_offset;
 
 					break;
 				}
@@ -412,17 +424,20 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const std::variant<Reg, RMNoDisp> rm = get_rm_value(is_word_instruction, mod_encoding, next_byte);
 
 					std::string rm_string;
+					int mod_offset;
 					if (std::holds_alternative<Reg>(rm)) {
 						const std::string_view rm_reg = reg_string(std::get<Reg>(rm));
+
 						rm_string = rm_reg;
+						mod_offset = get_mod_instruction_offset(mod_encoding, std::nullopt);
 					}
 					else {						
 						const RMNoDisp rm_no_disp = std::get<RMNoDisp>(rm);
 						const std::string rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
-						rm_string = rm_field;
-					}
 
-					const int mod_offset = get_mod_instruction_offset(mod_encoding);
+						rm_string = rm_field;
+						mod_offset = get_mod_instruction_offset(mod_encoding, std::optional<RMNoDisp>{ rm_no_disp });
+					}
 
 					if (is_word_instruction) {
 						const uint16_t data = *((uint16_t*)(bytes + instruction_index + mod_offset));
