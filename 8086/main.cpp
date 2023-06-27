@@ -202,6 +202,14 @@ std::string_view rm_string(RMNoDisp rm) {
 	}
 }
 
+uint8_t get_8_bit_disp(const uint8_t* bytes, int instruction_index) {
+	return *((uint8_t*)(bytes + instruction_index + 2));
+}
+
+uint16_t get_16_bit_disp(const uint8_t* bytes, int instruction_index) {
+	return *((uint16_t*)(bytes + instruction_index + 2));
+}
+
 std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint8_t* bytes, int instruction_index) {
 	std::string rm_field;
 	const std::string_view rm_sv = rm_string(rm);
@@ -211,7 +219,7 @@ std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint
 		break;
 	}
 	case ModEncoding::MemoryMode8BitDisplacement: {
-		uint8_t data = *((uint8_t*)(bytes + instruction_index + 2));
+		uint8_t data = get_8_bit_disp(bytes, instruction_index);
 		if (data != 0) {
 			rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
 		}
@@ -221,7 +229,7 @@ std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint
 		break;
 	}
 	case ModEncoding::MemoryMode16BitDisplacement: {
-		uint16_t data = *((uint16_t*)(bytes + instruction_index + 2));
+		uint16_t data = get_16_bit_disp(bytes, instruction_index);
 		if (data != 0) {
 			rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
 		}
@@ -282,6 +290,10 @@ int get_mod_instruction_offset(ModEncoding mod_encoding, std::optional<RMNoDisp>
 	else {
 		return 4;
 	}
+}
+
+bool is_direct_addrress(ModEncoding mod_encoding, RMNoDisp rm) {
+	return rm == RMNoDisp::BP && mod_encoding == ModEncoding::MemoryModeNoDisplacement;
 }
 
 enum class InstructionID {
@@ -375,7 +387,14 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					else {
 						const std::string_view reg_field = reg_string(reg);
 						const RMNoDisp rm_no_disp = std::get<RMNoDisp>(rm);
-						const std::string rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
+						std::string rm_field;
+						if (is_direct_addrress(mod_encoding, rm_no_disp)) {
+							uint16_t data = get_16_bit_disp(bytes, instruction_index);
+							rm_field = std::to_string(data);
+						}
+						else {
+							rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
+						}
 
 						if (direction_to_register) {
 							print_mov_instruction(reg_field, rm_field);
