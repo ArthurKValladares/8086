@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-#define DEBUG_PRINT true;
+#define DEBUG_PRINT false;
 
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
@@ -390,7 +390,7 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 						std::string rm_field;
 						if (is_direct_addrress(mod_encoding, rm_no_disp)) {
 							uint16_t data = get_16_bit_disp(bytes, instruction_index);
-							rm_field = std::to_string(data);
+							rm_field = "[" + std::to_string(data) + "]";
 						}
 						else {
 							rm_field = rm_sring_with_disp(rm_no_disp, mod_encoding, bytes, instruction_index);
@@ -478,16 +478,36 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				}
 				case InstructionID::MOV_MemoryToAccumulator:
 				{
-					printf("TODO\n");
+					const bool is_word_instruction = (byte & 0b00000001) != 0;
 					
+					if (is_word_instruction) {
+						const uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+						const std::string address_str = "[" + std::to_string(data) + "]";
+						print_mov_instruction("ax", address_str);
+					}
+					else {
+						const uint8_t data = *(bytes + instruction_index + 1);
+						const std::string address_str = "[" + std::to_string(data) + "]";
+						print_mov_instruction("ax", address_str);
+					}
 
 					instruction_index += 3;
 					break;
 				}
 				case InstructionID::MOV_AccumulatorToMemory:
 				{
-					printf("TODO\n");
-
+					const bool is_word_instruction = (byte & 0b00000001) != 0;
+					
+					if (is_word_instruction) {
+						const uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+						const std::string address_str = "[" + std::to_string(data) + "]";
+						print_mov_instruction(address_str, "ax");
+					}
+					else {
+						const uint8_t data = *(bytes + instruction_index + 1);
+						const std::string address_str = "[" + std::to_string(data) + "]";
+						print_mov_instruction(address_str, "ax");
+					}
 
 					instruction_index += 3;
 					break;
