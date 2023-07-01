@@ -202,12 +202,22 @@ std::string_view rm_string(RMNoDisp rm) {
 	}
 }
 
-uint8_t get_8_bit_disp(const uint8_t* bytes, int instruction_index) {
-	return *((uint8_t*)(bytes + instruction_index + 2));
+int8_t get_8_bit_disp(const uint8_t* bytes, int instruction_index) {
+	return *((int8_t*)(bytes + instruction_index + 2));
 }
 
-uint16_t get_16_bit_disp(const uint8_t* bytes, int instruction_index) {
-	return *((uint16_t*)(bytes + instruction_index + 2));
+int16_t get_16_bit_disp(const uint8_t* bytes, int instruction_index) {
+	return *((int16_t*)(bytes + instruction_index + 2));
+}
+
+template<typename T>
+std::string disp_to_output_string(T disp) {
+	if (disp < 0) {
+		return " - " + std::to_string(abs(disp));
+	}
+	else {
+		return " + " + std::to_string(disp);
+	}
 }
 
 std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint8_t* bytes, int instruction_index) {
@@ -219,9 +229,9 @@ std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint
 		break;
 	}
 	case ModEncoding::MemoryMode8BitDisplacement: {
-		uint8_t data = get_8_bit_disp(bytes, instruction_index);
+		int8_t data = get_8_bit_disp(bytes, instruction_index);
 		if (data != 0) {
-			rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
+			rm_field = std::string("[") + std::string(rm_sv) + disp_to_output_string(data) + std::string("]");
 		}
 		else {
 			rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
@@ -229,9 +239,9 @@ std::string rm_sring_with_disp(RMNoDisp rm, ModEncoding mod_encoding, const uint
 		break;
 	}
 	case ModEncoding::MemoryMode16BitDisplacement: {
-		uint16_t data = get_16_bit_disp(bytes, instruction_index);
+		int16_t data = get_16_bit_disp(bytes, instruction_index);
 		if (data != 0) {
-			rm_field = std::string("[") + std::string(rm_sv) + std::string(" + ") + std::to_string(data) + std::string("]");
+			rm_field = std::string("[") + std::string(rm_sv) + disp_to_output_string(data) + std::string("]");
 		}
 		else {
 			rm_field = std::string("[") + std::string(rm_sv) + std::string("]");
@@ -389,7 +399,7 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 						const RMNoDisp rm_no_disp = std::get<RMNoDisp>(rm);
 						std::string rm_field;
 						if (is_direct_addrress(mod_encoding, rm_no_disp)) {
-							uint16_t data = get_16_bit_disp(bytes, instruction_index);
+							int16_t data = get_16_bit_disp(bytes, instruction_index);
 							rm_field = "[" + std::to_string(data) + "]";
 						}
 						else {
@@ -418,14 +428,14 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const std::string_view reg_str = reg_string(reg);
 
 					if (is_word_instruction) {
-						const uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+						const int16_t data = *((int16_t*)(bytes + instruction_index + 1));
 
 						print_mov_instruction(reg_str, std::to_string(data));
 
 						instruction_index += 3;
 					}
 					else {
-						const uint8_t data = *(bytes + instruction_index + 1);
+						const int8_t data = *(bytes + instruction_index + 1);
 
 						print_mov_instruction(reg_str, std::to_string(data));
 
@@ -436,7 +446,7 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 				}
 				case InstructionID::MOV_ImmediateToRegisterMemory:
 				{
-					const uint8_t next_byte = *(bytes + instruction_index + 1);
+					const int8_t next_byte = *(bytes + instruction_index + 1);
 
 					const bool                        is_word_instruction = (byte & 0b00000001) != 0;
 					const ModEncoding                 mod_encoding = get_mod_encoding(next_byte);
@@ -459,14 +469,14 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					}
 
 					if (is_word_instruction) {
-						const uint16_t data = *((uint16_t*)(bytes + instruction_index + mod_offset));
+						const int16_t data = *((int16_t*)(bytes + instruction_index + mod_offset));
 						const std::string data_field = "word " + std::to_string(data);
 						print_mov_instruction(rm_string, data_field);
 
 						instruction_index += 2;
 					}
 					else {
-						const uint8_t data = *(bytes + instruction_index + mod_offset);
+						const int8_t data = *(bytes + instruction_index + mod_offset);
 						const std::string data_field = "byte " + std::to_string(data);
 						print_mov_instruction(rm_string, data_field);
 
@@ -481,12 +491,12 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const bool is_word_instruction = (byte & 0b00000001) != 0;
 					
 					if (is_word_instruction) {
-						const uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+						const int16_t data = *((int16_t*)(bytes + instruction_index + 1));
 						const std::string address_str = "[" + std::to_string(data) + "]";
 						print_mov_instruction("ax", address_str);
 					}
 					else {
-						const uint8_t data = *(bytes + instruction_index + 1);
+						const int8_t data = *(bytes + instruction_index + 1);
 						const std::string address_str = "[" + std::to_string(data) + "]";
 						print_mov_instruction("ax", address_str);
 					}
@@ -499,12 +509,12 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 					const bool is_word_instruction = (byte & 0b00000001) != 0;
 					
 					if (is_word_instruction) {
-						const uint16_t data = *((uint16_t*)(bytes + instruction_index + 1));
+						const int16_t data = *((int16_t*)(bytes + instruction_index + 1));
 						const std::string address_str = "[" + std::to_string(data) + "]";
 						print_mov_instruction(address_str, "ax");
 					}
 					else {
-						const uint8_t data = *(bytes + instruction_index + 1);
+						const int8_t data = *(bytes + instruction_index + 1);
 						const std::string address_str = "[" + std::to_string(data) + "]";
 						print_mov_instruction(address_str, "ax");
 					}
