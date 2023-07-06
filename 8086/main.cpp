@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-#define DEBUG_PRINT false;
+#define DEBUG_PRINT 1
 
 void print_byte(uint8_t byte) {
 	const std::bitset<8> bitset(byte);
@@ -540,7 +540,11 @@ void process_instructions(const uint8_t* bytes, uint64_t count) {
 
 int main() {
 	std::ifstream in_file;
-	in_file.open(".\\data\\listing_0040_challenge_movs");
+#ifdef __APPLE__
+    in_file.open("../../data/listing_0040_challenge_movs");
+#else
+    in_file.open("..\\data\\listing_0040_challenge_movs");
+#endif
 	if (in_file) {
 		// File size
 		in_file.seekg(0, std::ios::end);
@@ -558,7 +562,7 @@ int main() {
 		delete[] bytes;
 	}
 	else {
-		printf("Could not read input file");
+		printf("Could not read input file\n");
 	}
 
 	return 0;
